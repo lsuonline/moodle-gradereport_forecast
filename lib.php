@@ -922,9 +922,21 @@ class grade_report_forecast extends grade_report {
             // if this grade item is using a scale
             if ($this->isScaleItem($gradeItems[$id])) {
                 if ($gradeItems[$id]->get_parent_category()->aggregation == GRADE_AGGREGATE_SUM) {
+                    // Begin LSU MD-998
+                    if ($gradeItems[$id]->grademax == 0) {
+                        unset($gradeItems[$id]);
+                        continue;
+                    }
+                    // End LSU MD-998
                     $normalizedValues[$id] = $value / $gradeItems[$id]->grademax;
                 } else {
                     if ($value > 1) {
+                        // Begin LSU MD-998
+                        if ($gradeItems[$id]->grademax == 0) {
+                            unset($gradeItems[$id]);
+                            continue;
+                        }
+                        // End LSU MD-998
                         $normalizedValues[$id] = $value / $gradeItems[$id]->grademax;
                     } else {
                         $normalizedValues[$id] = 0;
@@ -932,6 +944,12 @@ class grade_report_forecast extends grade_report {
                 }
             } else {
                 // normalize using the item's max & min
+                // Begin LSU MD-998
+                if (($gradeItems[$id]->grademax - $gradeItems[$id]->grademin) == 0) {
+                    unset($gradeItems[$id]);
+                    continue;
+                }
+                // End LSU MD-998
                 $normalizedValues[$id] = $value / ($gradeItems[$id]->grademax - $gradeItems[$id]->grademin);
             }
 

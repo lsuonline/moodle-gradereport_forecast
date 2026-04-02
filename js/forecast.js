@@ -377,7 +377,15 @@ function postGradeInputs() {
         if (response.showMustMake) {
             renderMustMakeModal(response.mustMakeArray);
         }
+    // Begin LSU MD-998
+    }).fail(function() {
+        getCategories().each(function() {
+            $(this).html('');
+        });
+        getCourseCategory().html('');
+        console.error('Forecast report: AJAX request failed. The server returned an error.');
     });
+    // End LSU MD-998
 }
 
 /**
