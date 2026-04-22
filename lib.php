@@ -496,9 +496,11 @@ class grade_report_forecast extends grade_report {
      */
     private function calculateMustMake() {
 
+        // BEGIN LSU MD-998: Guard against empty ungradedGradeItemKey to prevent silent wrong state.
         if (empty($this->ungradedGradeItemKey)) {
             return [];
         }
+        // END LSU MD-998.
 
         // get the sole missing item
         $missingItem = grade_item::fetch(['id' => $this->ungradedGradeItemKey]);
@@ -965,6 +967,7 @@ class grade_report_forecast extends grade_report {
         return $normalizedValues;
     }
 
+    // BEGIN LSU MD-998: Add PHPDoc and return type hint to isScaleItem.
     /**
      * Returns true if the grade item uses a scale for grading.
      *
@@ -974,7 +977,9 @@ class grade_report_forecast extends grade_report {
     private function isScaleItem(grade_item $gradeItem): bool {
         return $gradeItem->gradetype == GRADE_TYPE_SCALE;
     }
+    // END LSU MD-998.
 
+    // BEGIN LSU MD-998: Helper to identify grade items with no meaningful grade range.
     /**
      * Returns true when a grade item has no meaningful grade range.
      *
@@ -987,6 +992,7 @@ class grade_report_forecast extends grade_report {
     private function isZeroRangeItem(grade_item $item): bool {
         return $item->grademax <= $item->grademin;
     }
+    // END LSU MD-998.
 
     /**
      * Stores an aggregate array for a given grade_item id
