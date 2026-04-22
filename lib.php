@@ -869,8 +869,6 @@ class grade_report_forecast extends grade_report {
                     unset($gradeItems[$gradeItemId]);
                 } else if (is_null($grade->finalgrade)) {
                     // BEGIN LSU MD-998: Do not mark zero-range items as the missing item for must-make calculation.
-                    // A zero-range item (grademax == grademin) is not gradeable; treating it as the ungraded
-                    // item would prevent shouldShowMustMake() from targeting the correct real missing grade.
                     if (!($gradeItem->grademax == $gradeItem->grademin)) {
                         $this->ungradedGradeItemKey = $gradeItemId;
                     }
@@ -1088,7 +1086,7 @@ class grade_report_forecast extends grade_report {
         // iterate through each POSTed form element
         foreach ($data as $key => $value) {
             // if this is a legitimate grade item input element
-            // BEGIN LSU MD-998: Use strict comparison; loose == 0 is truthy for false (prefix not found).
+            // BEGIN LSU MD-998: Use strict comparison to avoid false positives when strpos returns false.
             if (strpos($key, $this->getGradeItemInputPrefix()) === 0) {
             // END LSU MD-998.
                 // increment the total available grade item count
@@ -1405,22 +1403,17 @@ class grade_report_forecast extends grade_report {
                 
                 // determine what type of grade item this is and apply the proper "fcst" class
                 if ($type == 'item') {
+                    // BEGIN LSU MD-998: Exclude zero-range items from dynamic (input) rendering.
+                    $isZeroRangeItem = ($grade_grade->grade_item->grademax == $grade_grade->grade_item->grademin);
+                    $isDynamic = is_null($gradeval) && !$isZeroRangeItem;
+                    // END LSU MD-998.
+
                     // mark static/dynamic depending on whether there is a grade or not
-                    $class .= ' fcst-' . (( ! is_null($gradeval)) ? 'static' : 'dynamic' ) . '-item-' . $eid . ' ';
+                    $class .= ' fcst-' . ($isDynamic ? 'dynamic' : 'static') . '-item-' . $eid . ' ';
                     $class .= ' grade-max-' . $grade_grade->grade_item->grademax;
                     $class .= ' grade-min-' . $grade_grade->grade_item->grademin;
 
-                    $inputName = $this->getGradeItemInputPrefix() . $eid;
-
-                    // BEGIN LSU MD-998: Zero-range items (grademax == grademin) cannot receive a meaningful grade.
-                    // Rendering them as named inputs would cause formatRawInputData() to count them in
-                    // totalUngradedItemCount, which prevents shouldShowMustMake() from firing correctly.
-                    // Clearing inputName makes them render as static cells that are not submitted in the POST.
-                    $isZeroRangeItem = ($grade_grade->grade_item->grademax == $grade_grade->grade_item->grademin);
-                    if ($isZeroRangeItem) {
-                        $inputName = '';
-                    }
-                    // END LSU MD-998.
+                    $inputName = $isDynamic ? $this->getGradeItemInputPrefix() . $eid : '';
 
                     // check if this grade item is using a scale
                     $isScaleItem = $this->isScaleItem($grade_grade->grade_item);
