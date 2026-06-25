@@ -986,11 +986,18 @@ class grade_report_forecast extends grade_report {
      * A zero-range item (grademax <= grademin) cannot be normalised without
      * division by zero and should not be treated as a gradeable input target.
      *
+     * Pass $pristineGrademax/$pristineGrademin when calling from fill_table_recursive
+     * so that blank_hidden_total_and_adjust_bounds mutations do not affect the check.
+     *
      * @param grade_item $item
+     * @param float|null $pristineGrademax Original grademax before bound adjustments (optional).
+     * @param float|null $pristineGrademin Original grademin before bound adjustments (optional).
      * @return bool
      */
-    private function isZeroRangeItem(grade_item $item): bool {
-        return $item->grademax <= $item->grademin;
+    private function isZeroRangeItem(grade_item $item, ?float $pristineGrademax = null, ?float $pristineGrademin = null): bool {
+        $max = $pristineGrademax ?? $item->grademax;
+        $min = $pristineGrademin ?? $item->grademin;
+        return $max <= $min;
     }
     // END LSU MD-998.
 
@@ -1370,6 +1377,13 @@ class grade_report_forecast extends grade_report {
             // Actual Grade - We need to calculate this whether the row is hidden or not.
             $gradeval = $grade_grade->finalgrade;
             $hint = $grade_grade->get_aggregation_hint();
+            // BEGIN LSU MD-998: Capture pristine bounds before blank_hidden_total_and_adjust_bounds
+            // can mutate grademax/grademin. isZeroRangeItem() must check the original DB values so
+            // that normal items (e.g. 0-100) whose adjusted bounds collapse to 0-0 due to hidden
+            // siblings are not incorrectly treated as zero-range and rendered as static labels.
+            $pristineGrademax = $grade_grade->grade_item->grademax;
+            $pristineGrademin = $grade_grade->grade_item->grademin;
+            // END LSU MD-998.
             if (!$this->canviewhidden) {
                 /// Virtual Grade (may be calculated excluding hidden items etc).
                 $adjustedgrade = $this->blank_hidden_total_and_adjust_bounds($this->courseid,
@@ -1433,7 +1447,9 @@ class grade_report_forecast extends grade_report {
                 // determine what type of grade item this is and apply the proper "fcst" class
                 if ($type == 'item') {
                     // BEGIN LSU MD-998: Exclude zero-range items from dynamic (input) rendering.
-                    $isZeroRangeItem = $this->isZeroRangeItem($grade_grade->grade_item);
+                    // Use pristine (pre-adjustment) bounds so that items whose adjusted bounds
+                    // collapse due to hidden siblings are not falsely treated as zero-range.
+                    $isZeroRangeItem = $this->isZeroRangeItem($grade_grade->grade_item, $pristineGrademax, $pristineGrademin);
                     $isDynamic = is_null($gradeval) && !$isZeroRangeItem;
                     // END LSU MD-998.
 
