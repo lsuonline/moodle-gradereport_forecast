@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# moodle-gradereport_forecast
-Updated grade forecast report.
-=======
 # Grade Forecast Report
 
 This report allows students to fill in unset gradebook values to obtain
@@ -42,4 +38,3 @@ tracker][issues].
 ## License
 
 Grade Forecast Report adopts the same license that Moodle does.
->>>>>>> LSU_37_GRADEBOOK
