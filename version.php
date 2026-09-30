@@ -23,6 +23,6 @@
  */
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026093001;
+$plugin->version   = 2026093002;
 $plugin->requires  = 2016051900;
 $plugin->component = 'gradereport_forecast';

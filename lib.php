@@ -1690,10 +1690,3 @@ function grade_report_forecast_profilereport($course, $user, $viewasuser = false
  * @param stdClass $course Course object
  */
 function gradereport_forecast_myprofile_navigation(core_user\output\myprofile\tree $tree, $user, $iscurrentuser, $course) {}
-
-/**
- * Debug helper: dump a value and stop (frankenstyle-prefixed so it cannot collide with a global dd()).
- *
- * @param mixed $thing Value to dump.
- */
-function gradereport_forecast_dd($thing) { var_dump($thing);die; }
