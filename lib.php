@@ -1691,9 +1691,9 @@ function grade_report_forecast_profilereport($course, $user, $viewasuser = false
  */
 function gradereport_forecast_myprofile_navigation(core_user\output\myprofile\tree $tree, $user, $iscurrentuser, $course) {}
 
-// A global dd() may already exist (auth_saml2 bundles symfony/var-dumper, which
-// declares one). Declare ours only when it does not, or PHP fatals with
-// "Cannot redeclare dd()" on every page that loads this file.
-if (!function_exists('dd')) {
-    function dd($thing) { var_dump($thing);die; }
-}
+/**
+ * Debug helper: dump a value and stop (frankenstyle-prefixed so it cannot collide with a global dd()).
+ *
+ * @param mixed $thing Value to dump.
+ */
+function gradereport_forecast_dd($thing) { var_dump($thing);die; }
