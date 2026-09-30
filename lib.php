@@ -496,6 +496,12 @@ class grade_report_forecast extends grade_report {
      */
     private function calculateMustMake() {
 
+        // BEGIN LSU MD-998: Guard against empty ungradedGradeItemKey to prevent silent wrong state.
+        if (empty($this->ungradedGradeItemKey)) {
+            return [];
+        }
+        // END LSU MD-998.
+
         // get the sole missing item
         $missingItem = grade_item::fetch(['id' => $this->ungradedGradeItemKey]);
 
@@ -868,8 +874,11 @@ class grade_report_forecast extends grade_report {
                     // remove the item from the item container
                     unset($gradeItems[$gradeItemId]);
                 } else if (is_null($grade->finalgrade)) {
-                    // cache this missing (ungraded) grade item key
-                    $this->ungradedGradeItemKey = $gradeItemId;
+                    // BEGIN LSU MD-998: Do not mark zero-range items as the missing item for must-make calculation.
+                    if (!$this->isZeroRangeItem($gradeItem)) {
+                        $this->ungradedGradeItemKey = $gradeItemId;
+                    }
+                    // END LSU MD-998.
 
                     // remove grade, or set to zero depending on selected option
                     if ($removeUngradedItems) {
@@ -922,9 +931,21 @@ class grade_report_forecast extends grade_report {
             // if this grade item is using a scale
             if ($this->isScaleItem($gradeItems[$id])) {
                 if ($gradeItems[$id]->get_parent_category()->aggregation == GRADE_AGGREGATE_SUM) {
+                    // Begin LSU MD-998
+                    if ($this->isZeroRangeItem($gradeItems[$id])) {
+                        unset($gradeItems[$id]);
+                        continue;
+                    }
+                    // End LSU MD-998
                     $normalizedValues[$id] = $value / $gradeItems[$id]->grademax;
                 } else {
                     if ($value > 1) {
+                        // Begin LSU MD-998
+                        if ($this->isZeroRangeItem($gradeItems[$id])) {
+                            unset($gradeItems[$id]);
+                            continue;
+                        }
+                        // End LSU MD-998
                         $normalizedValues[$id] = $value / $gradeItems[$id]->grademax;
                     } else {
                         $normalizedValues[$id] = 0;
@@ -932,6 +953,12 @@ class grade_report_forecast extends grade_report {
                 }
             } else {
                 // normalize using the item's max & min
+                // Begin LSU MD-998
+                if ($this->isZeroRangeItem($gradeItems[$id])) {
+                    unset($gradeItems[$id]);
+                    continue;
+                }
+                // End LSU MD-998
                 $normalizedValues[$id] = $value / ($gradeItems[$id]->grademax - $gradeItems[$id]->grademin);
             }
 
@@ -940,9 +967,39 @@ class grade_report_forecast extends grade_report {
         return $normalizedValues;
     }
 
-    private function isScaleItem($gradeItem) {
-        return  $gradeItem->gradetype == GRADE_TYPE_SCALE;
+    // BEGIN LSU MD-998: Add PHPDoc and return type hint to isScaleItem.
+    /**
+     * Returns true if the grade item uses a scale for grading.
+     *
+     * @param grade_item $gradeItem
+     * @return bool
+     */
+    private function isScaleItem(grade_item $gradeItem): bool {
+        return $gradeItem->gradetype == GRADE_TYPE_SCALE;
     }
+    // END LSU MD-998.
+
+    // BEGIN LSU MD-998: Helper to identify grade items with no meaningful grade range.
+    /**
+     * Returns true when a grade item has no meaningful grade range.
+     *
+     * A zero-range item (grademax <= grademin) cannot be normalised without
+     * division by zero and should not be treated as a gradeable input target.
+     *
+     * Pass $pristineGrademax/$pristineGrademin when calling from fill_table_recursive
+     * so that blank_hidden_total_and_adjust_bounds mutations do not affect the check.
+     *
+     * @param grade_item $item
+     * @param float|null $pristineGrademax Original grademax before bound adjustments (optional).
+     * @param float|null $pristineGrademin Original grademin before bound adjustments (optional).
+     * @return bool
+     */
+    private function isZeroRangeItem(grade_item $item, ?float $pristineGrademax = null, ?float $pristineGrademin = null): bool {
+        $max = $pristineGrademax ?? $item->grademax;
+        $min = $pristineGrademin ?? $item->grademin;
+        return $max <= $min;
+    }
+    // END LSU MD-998.
 
     /**
      * Stores an aggregate array for a given grade_item id
@@ -1065,7 +1122,9 @@ class grade_report_forecast extends grade_report {
         // iterate through each POSTed form element
         foreach ($data as $key => $value) {
             // if this is a legitimate grade item input element
-            if (strpos($key, $this->getGradeItemInputPrefix()) == 0) {
+            // BEGIN LSU MD-998: Use strict comparison to avoid false positives when strpos returns false.
+            if (strpos($key, $this->getGradeItemInputPrefix()) === 0) {
+            // END LSU MD-998.
                 // increment the total available grade item count
                 $totalUngradedItemCount++;
 
@@ -1318,6 +1377,13 @@ class grade_report_forecast extends grade_report {
             // Actual Grade - We need to calculate this whether the row is hidden or not.
             $gradeval = $grade_grade->finalgrade;
             $hint = $grade_grade->get_aggregation_hint();
+            // BEGIN LSU MD-998: Capture pristine bounds before blank_hidden_total_and_adjust_bounds
+            // can mutate grademax/grademin. isZeroRangeItem() must check the original DB values so
+            // that normal items (e.g. 0-100) whose adjusted bounds collapse to 0-0 due to hidden
+            // siblings are not incorrectly treated as zero-range and rendered as static labels.
+            $pristineGrademax = $grade_grade->grade_item->grademax;
+            $pristineGrademin = $grade_grade->grade_item->grademin;
+            // END LSU MD-998.
             if (!$this->canviewhidden) {
                 /// Virtual Grade (may be calculated excluding hidden items etc).
                 $adjustedgrade = $this->blank_hidden_total_and_adjust_bounds($this->courseid,
@@ -1380,13 +1446,20 @@ class grade_report_forecast extends grade_report {
                 
                 // determine what type of grade item this is and apply the proper "fcst" class
                 if ($type == 'item') {
+                    // BEGIN LSU MD-998: Exclude zero-range items from dynamic (input) rendering.
+                    // Use pristine (pre-adjustment) bounds so that items whose adjusted bounds
+                    // collapse due to hidden siblings are not falsely treated as zero-range.
+                    $isZeroRangeItem = $this->isZeroRangeItem($grade_grade->grade_item, $pristineGrademax, $pristineGrademin);
+                    $isDynamic = is_null($gradeval) && !$isZeroRangeItem;
+                    // END LSU MD-998.
+
                     // mark static/dynamic depending on whether there is a grade or not
-                    $class .= ' fcst-' . (( ! is_null($gradeval)) ? 'static' : 'dynamic' ) . '-item-' . $eid . ' ';
+                    $class .= ' fcst-' . ($isDynamic ? 'dynamic' : 'static') . '-item-' . $eid . ' ';
                     $class .= ' grade-max-' . $grade_grade->grade_item->grademax;
                     $class .= ' grade-min-' . $grade_grade->grade_item->grademin;
 
-                    $inputName = $this->getGradeItemInputPrefix() . $eid;
-                    
+                    $inputName = $isDynamic ? $this->getGradeItemInputPrefix() . $eid : '';
+
                     // check if this grade item is using a scale
                     $isScaleItem = $this->isScaleItem($grade_grade->grade_item);
 

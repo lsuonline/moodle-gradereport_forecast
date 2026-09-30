@@ -230,6 +230,12 @@ function listenForInputChanges(debounceWaitTime) {
 
     // post grade inputs for calculation on grade (scale selects) input @keyup
     getGradeInputs('scale-selects').change(debounce(debouncedPostGradeInputs, debounceWaitTime));
+
+    // BEGIN LSU MD-998: Run must-make check on initial page load.
+    // Without this, the modal only appears after the user edits a field because
+    // postGradeInputs() was only ever called from keyup/change handlers.
+    postGradeInputs();
+    // END LSU MD-998.
 }
 
 /**
